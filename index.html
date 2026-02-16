@@ -166,13 +166,22 @@
       };
       pc.ontrack = (e) => { remoteAudio.srcObject = e.streams[0]; };
       pc.onconnectionstatechange = () => {
+        console.log("Connection state:", pc.connectionState);
         if (pc.connectionState === "connected") {
           setStatus("green", "Connected");
         }
-        if (pc.connectionState === "disconnected" || pc.connectionState === "failed") {
+        if (pc.connectionState === "failed") {
           cleanupPC();
-          setStatus("yellow", "Waiting for the other person...");
+          setStatus("red", "Connection failed (likely NAT/firewall issue) — try Reset");
+          document.getElementById("password-box").style.display = "block";
         }
+        if (pc.connectionState === "disconnected") {
+          cleanupPC();
+          setStatus("yellow", "Peer disconnected — waiting...");
+        }
+      };
+      pc.onicecandidateerror = (e) => {
+        console.warn("ICE candidate error:", e.errorCode, e.errorText, e.url);
       };
     }
 
@@ -248,7 +257,10 @@
         if (msg.type === "start-call" && !pc) {
           document.getElementById("password-box").style.display = "none";
           setStatus("yellow", "Connecting...");
-          startCall();
+          startCall().catch((err) => {
+            console.error("startCall failed:", err);
+            setStatus("red", "Call setup failed: " + err.message);
+          });
         }
 
         if (msg.type === "wrong-password") {
