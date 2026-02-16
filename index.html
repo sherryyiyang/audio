@@ -197,13 +197,15 @@
 
         if (msg.type === "count") {
           userCountEl.textContent = `${msg.count}/2 online`;
-          if (msg.count === 2 && !pc) {
-            setStatus("yellow", "Connecting...");
-            startCall();
-          } else if (msg.count < 2) {
+          if (msg.count < 2) {
             cleanupPC();
             setStatus("yellow", "Waiting for the other person...");
           }
+        }
+
+        if (msg.type === "start-call" && !pc) {
+          setStatus("yellow", "Connecting...");
+          startCall();
         }
 
         if (msg.type === "offer") await handleOffer(msg);

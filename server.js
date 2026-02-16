@@ -37,6 +37,11 @@ wss.on("connection", (ws) => {
   console.log(`User joined (${clients.size}/2)`);
   broadcast({ type: "count", count: clients.size });
 
+  // When 2 people are in, tell only the newest joiner to initiate the call
+  if (clients.size === 2) {
+    ws.send(JSON.stringify({ type: "start-call" }));
+  }
+
   ws.on("message", (data) => {
     let msg;
     try { msg = JSON.parse(data.toString()); } catch { return; }
