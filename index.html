@@ -56,10 +56,30 @@
       font-size: 0.85rem;
       color: #888;
     }
+
+    #user-count {
+      margin-bottom: 0.5rem;
+      font-size: 0.8rem;
+      color: #555;
+    }
+
+    #reset-btn {
+      margin-top: 2rem;
+      padding: 0.5rem 1.2rem;
+      border: 1px solid #555;
+      border-radius: 0.5rem;
+      background: transparent;
+      color: #888;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    #reset-btn:hover { border-color: #e94560; color: #e94560; }
   </style>
 </head>
 <body>
   <div class="container">
+    <div id="user-count">0/2 online</div>
     <p id="status"><span class="dot yellow"></span> Joining room...</p>
     <button id="mute-btn">
       <svg id="mic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -71,11 +91,13 @@
       </svg>
     </button>
     <div id="mute-label">Mic on</div>
+    <button id="reset-btn">Reset Room</button>
   </div>
   <audio id="remote-audio" autoplay></audio>
 
   <script>
     const statusEl = document.getElementById("status");
+    const userCountEl = document.getElementById("user-count");
     const muteBtn = document.getElementById("mute-btn");
     const muteLabel = document.getElementById("mute-label");
     const remoteAudio = document.getElementById("remote-audio");
@@ -148,18 +170,33 @@
       if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg));
     }
 
+    let reconnectDelay = 1000;
+
     function connect() {
       const proto = location.protocol === "https:" ? "wss" : "ws";
       ws = new WebSocket(`${proto}://${location.host}`);
 
       ws.onopen = () => {
+        reconnectDelay = 1000; // reset on success
         setStatus("yellow", "Waiting for the other person...");
       };
 
+      ws.onerror = (e) => {
+        console.error("WebSocket error:", e);
+      };
+
       ws.onmessage = async (e) => {
-        const msg = JSON.parse(e.data);
+        let msg;
+        try { msg = JSON.parse(e.data); } catch { return; }
+
+        if (msg.type === "full") {
+          userCountEl.textContent = "2/2 online";
+          setStatus("red", "Room is full — try again later or hit Reset");
+          return;
+        }
 
         if (msg.type === "count") {
+          userCountEl.textContent = `${msg.count}/2 online`;
           if (msg.count === 2 && !pc) {
             setStatus("yellow", "Connecting...");
             startCall();
@@ -188,8 +225,9 @@
 
       ws.onclose = () => {
         cleanupPC();
-        setStatus("red", "Disconnected — reconnecting...");
-        setTimeout(connect, 2000);
+        setStatus("red", `Disconnected — retrying in ${reconnectDelay / 1000}s...`);
+        setTimeout(connect, reconnectDelay);
+        reconnectDelay = Math.min(reconnectDelay * 2, 10000); // backoff up to 10s
       };
     }
 
@@ -204,6 +242,15 @@
       localStream.getAudioTracks().forEach((t) => { t.enabled = !muted; });
       muteBtn.classList.toggle("muted", muted);
       muteLabel.textContent = muted ? "Mic off" : "Mic on";
+    });
+
+    // --- Reset button ---
+    document.getElementById("reset-btn").addEventListener("click", () => {
+      send({ type: "reset" });
+      cleanupPC();
+      if (ws) { ws.close(); ws = null; }
+      setStatus("yellow", "Room reset — rejoining...");
+      setTimeout(() => getMic().then(() => connect()), 1000);
     });
 
     // --- Start immediately ---

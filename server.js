@@ -18,8 +18,17 @@ const server = http.createServer((req, res) => {
 const wss = new WebSocketServer({ server });
 const clients = new Set();
 
+function resetAll() {
+  console.log("Reset — closing all connections");
+  for (const client of clients) {
+    client.close(1000, "reset");
+  }
+  clients.clear();
+}
+
 wss.on("connection", (ws) => {
   if (clients.size >= 2) {
+    ws.send(JSON.stringify({ type: "full" }));
     ws.close(1013, "Room is full");
     return;
   }
@@ -29,6 +38,15 @@ wss.on("connection", (ws) => {
   broadcast({ type: "count", count: clients.size });
 
   ws.on("message", (data) => {
+    let msg;
+    try { msg = JSON.parse(data.toString()); } catch { return; }
+
+    if (msg.type === "reset") {
+      resetAll();
+      return;
+    }
+
+    // Relay signaling to the other peer
     for (const client of clients) {
       if (client !== ws && client.readyState === 1) {
         client.send(data.toString());
