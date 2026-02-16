@@ -15,6 +15,8 @@ const server = http.createServer((req, res) => {
   }
 });
 
+const ROOM_PASSWORD = "2333";
+
 const wss = new WebSocketServer({ server });
 const clients = new Set();
 
@@ -37,17 +39,22 @@ wss.on("connection", (ws) => {
   console.log(`User joined (${clients.size}/2)`);
   broadcast({ type: "count", count: clients.size });
 
-  // When 2 people are in, tell only the newest joiner to initiate the call
-  if (clients.size === 2) {
-    ws.send(JSON.stringify({ type: "start-call" }));
-  }
-
   ws.on("message", (data) => {
     let msg;
     try { msg = JSON.parse(data.toString()); } catch { return; }
 
     if (msg.type === "reset") {
       resetAll();
+      return;
+    }
+
+    if (msg.type === "auth") {
+      if (msg.password === ROOM_PASSWORD && clients.size === 2) {
+        // Tell the person who entered the password to start the call
+        ws.send(JSON.stringify({ type: "start-call" }));
+      } else {
+        ws.send(JSON.stringify({ type: "wrong-password" }));
+      }
       return;
     }
 

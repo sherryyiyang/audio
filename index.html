@@ -63,6 +63,39 @@
       color: #555;
     }
 
+    #password-box {
+      margin-top: 1.5rem;
+      display: none;
+    }
+    #password-box input {
+      padding: 0.5rem 0.8rem;
+      border: 1px solid #555;
+      border-radius: 0.5rem;
+      background: #2a2a4a;
+      color: #eee;
+      font-size: 0.95rem;
+      width: 8rem;
+      text-align: center;
+      outline: none;
+    }
+    #password-box input:focus { border-color: #2ecc71; }
+    #password-box button {
+      margin-left: 0.5rem;
+      padding: 0.5rem 1rem;
+      border: none;
+      border-radius: 0.5rem;
+      background: #2ecc71;
+      color: white;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+    #password-box button:hover { opacity: 0.9; }
+    #pw-error {
+      color: #e94560;
+      font-size: 0.8rem;
+      margin-top: 0.4rem;
+    }
+
     #reset-btn {
       margin-top: 2rem;
       padding: 0.5rem 1.2rem;
@@ -91,6 +124,11 @@
       </svg>
     </button>
     <div id="mute-label">Mic on</div>
+    <div id="password-box">
+      <input id="pw-input" type="password" placeholder="Password" maxlength="10">
+      <button id="pw-submit">Go</button>
+      <div id="pw-error"></div>
+    </div>
     <button id="reset-btn">Reset Room</button>
   </div>
   <audio id="remote-audio" autoplay></audio>
@@ -197,15 +235,24 @@
 
         if (msg.type === "count") {
           userCountEl.textContent = `${msg.count}/2 online`;
-          if (msg.count < 2) {
+          if (msg.count >= 2 && !pc) {
+            document.getElementById("password-box").style.display = "block";
+            setStatus("yellow", "2/2 online — waiting for host to start");
+          } else if (msg.count < 2) {
+            document.getElementById("password-box").style.display = "none";
             cleanupPC();
             setStatus("yellow", "Waiting for the other person...");
           }
         }
 
         if (msg.type === "start-call" && !pc) {
+          document.getElementById("password-box").style.display = "none";
           setStatus("yellow", "Connecting...");
           startCall();
+        }
+
+        if (msg.type === "wrong-password") {
+          document.getElementById("pw-error").textContent = "Wrong password";
         }
 
         if (msg.type === "offer") await handleOffer(msg);
@@ -244,6 +291,17 @@
       localStream.getAudioTracks().forEach((t) => { t.enabled = !muted; });
       muteBtn.classList.toggle("muted", muted);
       muteLabel.textContent = muted ? "Mic off" : "Mic on";
+    });
+
+    // --- Password submit ---
+    function submitPassword() {
+      const pw = document.getElementById("pw-input").value;
+      document.getElementById("pw-error").textContent = "";
+      send({ type: "auth", password: pw });
+    }
+    document.getElementById("pw-submit").addEventListener("click", submitPassword);
+    document.getElementById("pw-input").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") submitPassword();
     });
 
     // --- Reset button ---
